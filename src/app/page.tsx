@@ -1,113 +1,315 @@
-import Image from 'next/image'
+"use client";
+import {
+  PiArrowBendUpLeft,
+  PiArrowUpBold,
+  PiExclamationMarkDuotone,
+  PiFloppyDiskBackBold,
+  PiPlusBold,
+  PiSpinner,
+} from "react-icons/pi";
+import { useRef, useState } from "react";
+import { useForm } from "react-hook-form";
+import useClickOutside from "@/hooks/useClickOutside";
+import Row from "@/components/Row";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { AnimatePresence, motion } from "framer-motion";
+
+const headers = [
+  { key: "firstName", value: "First Name" },
+  { key: "lastName", value: "Last Name" },
+  { key: "position", value: "Position" },
+  { key: "phone", value: "Phone" },
+  { key: "email", value: "Email" },
+];
+
+export interface User {
+  firstName: string;
+  lastName: string;
+  position: string;
+  phone: string;
+  email: string;
+  id?: string;
+}
 
 export default function Home() {
+  const [sortBy, setSortBy] = useState<string>("");
+  const [isAdd, setIsAdd] = useState<boolean>(false);
+  const [updatedFields, setUpdatedFields] = useState<any>({});
+  const [error, setError] = useState<boolean>(false);
+  const {
+    register,
+    reset,
+    watch,
+  } = useForm({
+    defaultValues: {
+      firstName: "",
+      lastName: "",
+      position: "",
+      phone: "",
+      email: ""
+    },
+  });
+
+  const resetButtonRef = useRef<HTMLDivElement>(null);
+
+  const firstName = watch("firstName");
+  const lastName = watch("lastName");
+  const position = watch("position");
+  const phone = watch("phone");
+  const email = watch("email");
+
+  const checkRow = (index: string) => {
+    if (isAdd) {
+      return "";
+    } else {
+      return "border-b";
+    }
+  };
+
+  const checkEmail = (email: string) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const testEmail = emailRegex.test(email);
+
+    if (testEmail) {
+      return "bg-green-100";
+    }
+    return "bg-red-100";
+  };
+
+  const handleAdd = () => {
+    if (isAdd) {
+      setIsAdd(false);
+      reset();
+    } else {
+      setIsAdd(true);
+    }
+  };
+
+  const handleSort = (key: string) => {
+    if (sortBy === key) {
+      setSortBy("");
+    } else {
+      setSortBy(key);
+    }
+  };
+
+  const create = useMutation({
+    mutationKey: ["create"],
+    mutationFn: async (data: User) => {
+      const response = await fetch('http://localhost:4000/crud', {
+        method: "POST",
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data),
+      });
+  
+      if (!response.ok) {
+        const errorData = await response.json();
+
+        if (errorData.statusCode === 400) {
+          setError(true);
+          console.log(errorData);
+        }
+
+        throw new Error(errorData.message || 'Something went wrong');
+      }
+  
+      return response.json();
+    },
+    onSuccess: () => {
+      users.refetch();
+      setIsAdd(false);
+      reset();
+    },
+    onError: (error: any) => {
+      console.log(error.response)
+    },
+  });
+
+  const handleSaveAdd = () => {
+    if (create.isPending) return;
+
+    if (
+      firstName !== "" &&
+      lastName !== "" &&
+      position !== "" &&
+      phone !== "" &&
+      email !== ""
+    ) {
+      const payload = {
+        firstName: firstName,
+        lastName: lastName,
+        position: position,
+        phone: phone,
+        email: email,
+      };
+
+      create.mutate(payload);
+    }
+  };
+
+  const handleReset = async () => {
+    reset();
+    setIsAdd(false);
+    setUpdatedFields({});
+    await users.refetch();
+  };
+
+  const users = useQuery({
+    queryKey: ["users", sortBy],
+    queryFn: () => fetch(`http://localhost:4000/crud${sortBy !== "" ? `?sort=${sortBy}` : ''}`).then((res) => res.json()),
+  });
+
+  const ref = useClickOutside<HTMLDivElement>(handleSaveAdd, handleReset, resetButtonRef);
+
   return (
-    <main className="flex min-h-screen flex-col items-center justify-between p-24">
-      <div className="z-10 max-w-5xl w-full items-center justify-between font-mono text-sm lg:flex">
-        <p className="fixed left-0 top-0 flex w-full justify-center border-b border-gray-300 bg-gradient-to-b from-zinc-200 pb-6 pt-8 backdrop-blur-2xl dark:border-neutral-800 dark:bg-zinc-800/30 dark:from-inherit lg:static lg:w-auto  lg:rounded-xl lg:border lg:bg-gray-200 lg:p-4 lg:dark:bg-zinc-800/30">
-          Get started by editing&nbsp;
-          <code className="font-mono font-bold">src/app/page.tsx</code>
-        </p>
-        <div className="fixed bottom-0 left-0 flex h-48 w-full items-end justify-center bg-gradient-to-t from-white via-white dark:from-black dark:via-black lg:static lg:h-auto lg:w-auto lg:bg-none">
-          <a
-            className="pointer-events-none flex place-items-center gap-2 p-8 lg:pointer-events-auto lg:p-0"
-            href="https://vercel.com?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            By{' '}
-            <Image
-              src="/vercel.svg"
-              alt="Vercel Logo"
-              className="dark:invert"
-              width={100}
-              height={24}
-              priority
+    <main
+      className={`bg-white w-full h-screen overflow-hidden flex flex-col gap-4 p-8`}
+    >
+      <div className="w-full flex justify-end">
+        <div className="flex gap-4 items-center">
+          <PiPlusBold
+            className="text-2xl cursor-pointer hover:text-blue-600"
+            onClick={() => handleAdd()}
+          />
+          <PiFloppyDiskBackBold className="text-2xl cursor-pointer hover:text-red-600" onClick={() => handleSaveAdd()} />
+          <div ref={resetButtonRef} onClick={() => handleReset()}>
+            <PiArrowBendUpLeft
+              className="text-2xl cursor-pointer hover:text-amber-600"
             />
-          </a>
+          </div>
         </div>
       </div>
+      <div
+        className={`w-full grid grid-cols-5 border border-neutral-500/50 shadow-md`}
+      >
+        {headers.map((header) => (
+          <div
+            key={header.key}
+            onClick={() => handleSort(header.key)}
+            className="flex gap-1 items-center p-2 border-b bg-rose-200 border-neutral-500/50 text-neutral-800 cursor-pointer select-none hover:bg-rose-300 transition-all"
+          >
+            <span className="font-semibold">{header.value}</span>
+            {sortBy === header.key && <PiArrowUpBold />}
+          </div>
+        ))}
 
-      <div className="relative flex place-items-center before:absolute before:h-[300px] before:w-[480px] before:-translate-x-1/2 before:rounded-full before:bg-gradient-radial before:from-white before:to-transparent before:blur-2xl before:content-[''] after:absolute after:-z-20 after:h-[180px] after:w-[240px] after:translate-x-1/3 after:bg-gradient-conic after:from-sky-200 after:via-blue-200 after:blur-2xl after:content-[''] before:dark:bg-gradient-to-br before:dark:from-transparent before:dark:to-blue-700 before:dark:opacity-10 after:dark:from-sky-900 after:dark:via-[#0141ff] after:dark:opacity-40 before:lg:h-[360px] z-[-1]">
-        <Image
-          className="relative dark:drop-shadow-[0_0_0.3rem_#ffffff70] dark:invert"
-          src="/next.svg"
-          alt="Next.js Logo"
-          width={180}
-          height={37}
-          priority
-        />
-      </div>
+        <AnimatePresence>
+          {isAdd && (
+            <motion.div
+              initial={{ y: -5, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: -5, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              ref={ref}
+              className="col-span-5 grid grid-cols-5 border-b border-neutral-500/50"
+            >
+              <input
+                type="text"
+                {...register("firstName")}
+                autoFocus={true}
+                className={`w-full h-full border-b-2 outline-none border-transparent focus:border-b-blue-500 p-2 ${
+                  firstName !== "" && "bg-green-100"
+                }`}
+              />
+              <input
+                type="text"
+                {...register("lastName")}
+                className={`w-full h-full border-b-2 outline-none border-transparent focus:border-b-blue-500 p-2 ${
+                  lastName !== "" && "bg-green-100"
+                }`}
+              />
+              <input
+                type="text"
+                {...register("position")}
+                className={`w-full h-full border-b-2 outline-none border-transparent focus:border-b-blue-500 p-2 ${
+                  position !== "" && "bg-green-100"
+                }`}
+              />
+              <input
+                type="text"
+                {...register("phone")}
+                className={`w-full h-full border-b-2 outline-none border-transparent focus:border-b-blue-500 p-2 ${
+                  phone !== "" && "bg-green-100"
+                }`}
+              />
+              <div className="w-full h-full relative">
+                <input
+                  type="email"
+                  {...register("email")}
+                  className={`w-full h-full outline-none border-b-2 border-transparent group focus:border-b-blue-500 p-2 ${
+                    email !== "" && checkEmail(email)
+                  }`}
+                />
+                {create.isPending && <PiSpinner className="right-4 top-2.5 text-lg absolute animate-spin " />}
+                <AnimatePresence>
+                  {error && (
+                    <motion.div
+                      onClick={() => setError(false)}
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      transition={{ duration: 0.2 }}
+                      className="absolute -bottom-8 z-20 text-xs bg-rose-600 text-white rounded-lg py-2 px-3 flex items-center gap-1 select-none cursor-pointer">
+                      <PiExclamationMarkDuotone className="text-lg" />
+                      <span>Email should unique</span>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-      <div className="mb-32 grid text-center lg:max-w-5xl lg:w-full lg:mb-0 lg:grid-cols-4 lg:text-left">
-        <a
-          href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Docs{' '}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Find in-depth information about Next.js features and API.
-          </p>
-        </a>
+        {users.isLoading && (
+          <div className="col-span-5 h-[80vh] flex justify-center items-center">
+            <div className="flex flex-col w-60 items-center">
+              <div className="w-full text-center">
+                Loading...
+              </div>
+            </div>
+          </div>
+        )}
 
-        <a
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Learn{' '}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Learn about Next.js in an interactive course with&nbsp;quizzes!
-          </p>
-        </a>
+        {!users.isLoading && !users.data.length && (
+          <div className="col-span-5 h-[80vh] flex justify-center items-center">
+            <div className="flex flex-col w-60 items-center">
+              <div className="w-full text-center">
+                No Data...
+              </div>
+              <div className="w-full flex justify-center">
+                <div
+                  onClick={() => handleAdd()}
+                  className="p-2 bg-rose-500 text-white text-sm flex items-center gap-1 select-none cursor-pointer rounded">
+                  <PiPlusBold className="text-lg" />
+                  <span>Add Data</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Templates{' '}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Explore the Next.js 13 playground.
-          </p>
-        </a>
 
-        <a
-          href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Deploy{' '}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Instantly deploy your Next.js site to a shareable URL with Vercel.
-          </p>
-        </a>
+        <div className="col-span-5 grid grid-cols-5 overflow-y-scroll max-h-[80vh]">
+          {!users.isLoading && users?.data.map((user: User) => (
+            <Row
+              data={user}
+              index={user.id as string}
+              checkRow={checkRow}
+              setUpdatedFields={setUpdatedFields}
+              updatedFields={updatedFields}
+              handleReset={handleReset}
+              resetRef={resetButtonRef}
+              refetch={async () => {
+                await users.refetch();
+                setUpdatedFields({});
+              }}
+              key={user.id}
+            />
+          ))}
+        </div>
       </div>
     </main>
-  )
+  );
 }
